@@ -7,11 +7,12 @@ const rateLimit   = require('express-rate-limit');
 const path        = require('path');   // ✅ Added for frontend serving
 const connectDB   = require('./config/db');
 
-const authRoutes      = require('./routes/auth');
-const petRoutes       = require('./routes/pets');
-const lfRoutes        = require('./routes/lostfound');
-const adminRoutes     = require('./routes/admin');
-const uploadRoutes    = require('./routes/upload');
+const connectDB   = require('./db');
+const authRoutes      = require('./auth');
+const petRoutes       = require('./pets');
+const lfRoutes        = require('./lostfound');
+const adminRoutes     = require('./admin');
+const uploadRoutes    = require('./upload');
 
 connectDB();
 const app = express();
@@ -34,7 +35,7 @@ app.use(morgan('dev'));
 
 
 // ✅ Serve Frontend from "public" folder
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname));;
 
 // 🔹 Rate Limiter (only for API)
 const limiter = rateLimit({
@@ -50,11 +51,11 @@ app.use('/api/pets',      petRoutes);
 app.use('/api/lostfound', lfRoutes);
 app.use('/api/admin',     adminRoutes);
 app.use('/api/upload',    uploadRoutes);
-app.use('/api/adoptions', require('./routes/adoptions'));
+app.use('/api/adoptions', require('./adoptions'));;
 
 // 🔹 Root Route (Optional – can keep or remove)
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // 🔹 404 Handler
@@ -75,5 +76,6 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🐾 PawConnect API running on port ${PORT}`);
 });
+
 
 module.exports = app;
