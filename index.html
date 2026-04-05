@@ -4,12 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PawConnect — Live Preview</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
-  // 🔑 PASTE YOUR ANTHROPIC API KEY BELOW (get it from console.anthropic.com)
-  window.PAWCONNECT_AI_KEY = '';
+  // 🔑 Groq API - FREE at console.groq.com (no credit card needed!)
+  window.PAWCONNECT_AI_KEY = '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';
 </script>
 <script>
   (function(){
@@ -401,6 +402,7 @@ h4{font-size:1.05rem;font-weight:600} p{font-size:1rem;color:var(--bark-md)}
 </style>
 </head>
 <body>
+<div id="toast-container" class="toast-container"></div>
 
 <!-- ══ NAVBAR ══ -->
 <header class="navbar" id="navbar">
@@ -714,7 +716,14 @@ h4{font-size:1.05rem;font-weight:600} p{font-size:1rem;color:var(--bark-md)}
           <button class="tab-btn" onclick="setLFTab(this,'lost')" style="color:#c0392b">🔴 Lost</button>
           <button class="tab-btn" onclick="setLFTab(this,'found')" style="color:var(--moss)">🟢 Found</button>
         </div>
+        <button class="btn btn-secondary btn-sm" onclick="toggleLFMap()" id="map-toggle-btn">🗺️ Show Map</button>
       </div>
+
+      <!-- MAP VIEW -->
+      <div id="lf-map-container" style="display:none;margin-bottom:32px;border-radius:var(--radius-xl);overflow:hidden;box-shadow:var(--shadow-md)">
+        <div id="lf-map" style="height:450px;width:100%"></div>
+      </div>
+
       <div class="grid-3" id="lf-grid"></div>
 
       <!-- Report Form -->
@@ -749,7 +758,10 @@ h4{font-size:1.05rem;font-weight:600} p{font-size:1rem;color:var(--bark-md)}
               <div class="grid-2"><div class="form-group"><label>Pet's Name</label><input type="text" name="petName" class="form-input" placeholder="e.g. Bruno or Unknown"></div><div class="form-group"><label>Species <span>*</span></label><select name="species" class="form-input" required><option value="">Select…</option><option value="dog">Dog</option><option value="cat">Cat</option><option value="rabbit">Rabbit</option><option value="bird">Bird</option></select></div></div>
               <div class="grid-2"><div class="form-group"><label>Breed</label><input type="text" name="breed" class="form-input" placeholder="e.g. Labrador"></div><div class="form-group"><label>Color</label><input type="text" name="color" class="form-input" placeholder="e.g. Black &amp; White"></div></div>
               <div class="form-group"><label>Location <span>*</span></label><input type="text" name="location" class="form-input" placeholder="Area, City" required></div>
-              <div class="form-group"><label>Contact Number <span>*</span></label><input type="tel" name="contact" class="form-input" placeholder="+91 98765 43210" required></div>
+              <div class="grid-2">
+                <div class="form-group"><label>Contact Number <span>*</span></label><input type="tel" name="contact" class="form-input" placeholder="+91 98765 43210" required></div>
+                <div class="form-group"><label>Your Email <span>*</span></label><input type="email" name="reporterEmail" class="form-input" placeholder="you@example.com" required></div>
+              </div>
               <div class="form-group"><label>Description <span>*</span></label><textarea name="description" class="form-input" rows="3" placeholder="Describe the pet's appearance and circumstances…" style="resize:vertical" required></textarea></div>
               <button type="submit" class="btn btn-moss btn-full btn-lg">📢 Submit Report</button>
             </form>
@@ -804,7 +816,7 @@ h4{font-size:1.05rem;font-weight:600} p{font-size:1rem;color:var(--bark-md)}
           <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px">
             <button class="btn btn-primary btn-full" onclick="openModal('add-vaccine-modal')">💉 Add Vaccine</button>
             <button class="btn btn-moss btn-full" onclick="showToast('Weight logged! 28.5 kg','success')">⚖️ Log Weight</button>
-            <button class="btn btn-secondary btn-full" onclick="showToast('Appointment scheduler coming soon!','default')">📅 Schedule Appointment</button>
+            <button class="btn btn-secondary btn-full" onclick="openModal('schedule-appt-modal')">📅 Schedule Appointment</button>
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:20px">
@@ -983,49 +995,181 @@ async function sendAIMessage(){
   const btn = document.getElementById('ai-send-btn');
   btn.disabled = true; btn.style.opacity = '0.5';
 
+  const groqKey = window.PAWCONNECT_AI_KEY || '';
+
+  // Check if key is set
+  if(!groqKey || groqKey === 'PASTE_YOUR_GROQ_KEY_HERE') {
+    document.getElementById(typingId)?.remove();
+    msgs.innerHTML += `<div class="ai-msg ai-msg--bot"><div style="background:#fff3cd;border:1px solid #ffc107;border-radius:16px 16px 16px 4px;padding:12px 14px;font-size:.88rem;color:#856404">
+      ⚠️ <strong>AI not configured yet.</strong><br><br>
+      To enable AI chat:<br>
+      1️⃣ Go to <a href="https://console.groq.com" target="_blank" style="color:#0066cc">console.groq.com</a><br>
+      2️⃣ Sign up FREE (no credit card!)<br>
+      3️⃣ Click "API Keys" → Create key<br>
+      4️⃣ In index.html find <code>PASTE_YOUR_GROQ_KEY_HERE</code> and replace with your key
+    </div></div>`;
+    btn.disabled = false; btn.style.opacity = '1';
+    msgs.scrollTop = msgs.scrollHeight;
+    return;
+  }
+
   try {
     const petList = (apiAnimals.length > 0 ? apiAnimals : ANIMALS);
     const animalsContext = petList.slice(0,6).map(a=>`${a.name} (${a.breed||a.species}, ${a.age}, ${a.location||a.city||'India'})`).join(', ');
-    const systemPrompt = `You are PawAdvisor, a friendly AI assistant for PawConnect — a pet adoption and animal welfare platform. 
-Help users with: pet adoption advice, which pet suits their lifestyle, pet health & vaccination questions, lost & found pet guidance, and general animal care tips.
-Keep responses warm, concise (2-4 sentences max), and emoji-friendly 🐾. 
-Current available pets: ${animalsContext}.
-Never give medical diagnoses — always recommend a vet for health concerns.`;
+    const systemPrompt = `You are PawAdvisor, a friendly AI assistant for PawConnect — India's pet adoption and animal welfare platform. Help users with: pet adoption advice, which pet suits their lifestyle, pet health and vaccination questions, lost and found pet guidance, and general animal care tips. Keep responses warm, concise (2-4 sentences max), and emoji-friendly 🐾. Current available pets: ${animalsContext}. Never give medical diagnoses — always recommend a vet for health concerns.`;
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': window.PAWCONNECT_AI_KEY || '',
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 300,
-        system: systemPrompt,
-        messages: aiChatHistory
-      })
-    })
+    let reply = null;
 
-    const data = await response.json();
-    const reply = data.content?.[0]?.text || "Sorry, I couldn't process that. Please try again! 🐾";
+    // METHOD 1: Backend proxy (best - no CORS)
+    try {
+      const r1 = await fetch('http://localhost:5000/api/ai', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ messages: aiChatHistory, systemPrompt })
+      });
+      if(r1.ok){ const d=await r1.json(); if(d.reply){ reply=d.reply; console.log('✅ AI via backend'); } }
+    } catch(e){ console.log('Backend failed:', e.message); }
 
-    // Add to history
+    // METHOD 2: Groq directly
+    if(!reply){
+      try {
+        const r2 = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},
+          body: JSON.stringify({ model:'llama3-8b-8192', max_tokens:300, messages:[{role:'system',content:systemPrompt},...aiChatHistory] })
+        });
+        if(r2.ok){ const d=await r2.json(); if(d.choices?.[0]?.message?.content){ reply=d.choices[0].message.content; console.log('✅ AI via Groq direct'); } }
+      } catch(e){ console.log('Groq direct failed:', e.message); }
+    }
+
+    // METHOD 3: Smart keyword replies (always works!)
+    if(!reply){
+      console.log('⚠️ Using smart local AI');
+      const q = msg.toLowerCase();
+      if(q.match(/^(hi|hello|hey|namaste|helo)/))
+        reply = `Hello! 👋 I'm PawAdvisor, your pet care assistant on PawConnect! 🐾 I can help with adoption advice, pet health tips, lost & found guidance, and more. What would you like to know?`;
+      else if(q.includes('which pet') || q.includes('what pet') || q.includes('suggest') || q.includes('recommend'))
+        reply = `Great question! 🐾 For busy professionals, cats are perfect — independent and low-maintenance. For active families, dogs like Labrador or Indie dogs are ideal. For small apartments, rabbits or hamsters work great! What's your lifestyle like?`;
+      else if(q.includes('adopt') || q.includes('adoption'))
+        reply = `We have ${petList.length} adorable animals waiting for a loving home! 🐾 Browse our Adoption page, click on any pet, and hit "Adopt Me" to submit a request. Our team connects you with the shelter within 2 business days!`;
+      else if(q.includes('lost') || q.includes('found') || q.includes('missing'))
+        reply = `For lost pets, go to Lost & Found immediately and post a report with photo and last known location 📍 Check our live map — someone may have already found your pet! Acting within the first 24 hours is very important!`;
+      else if(q.includes('vaccin') || q.includes('vaccine') || q.includes('injection') || q.includes('shot'))
+        reply = `Vaccines are vital! 💉 Dogs need: Rabies, DHPP combo, and Bordetella every 6–12 months. Cats need: FVRCP and Rabies annually. Use our Health Tracker to set reminders so you never miss a dose!`;
+      else if(q.includes('food') || q.includes('eat') || q.includes('diet') || q.includes('feed'))
+        reply = `Good nutrition = happy pet! 🍖 Choose high-protein food with meat as the first ingredient. Avoid onions, garlic, grapes, chocolate — they're toxic for pets! Consult your vet for a diet plan tailored to your pet's age and breed.`;
+      else if(q.includes('dog') || q.includes('puppy') || q.includes('labrador') || q.includes('beagle') || q.includes('indie'))
+        reply = `Dogs are the best companions! 🐕 For first-time owners, Labrador Retrievers, Beagles, or Indian Indie dogs are perfect — friendly, adaptable, and full of love. We have wonderful dogs available for adoption right now!`;
+      else if(q.includes('cat') || q.includes('kitten') || q.includes('persian') || q.includes('feline'))
+        reply = `Cats are absolutely wonderful! 🐱 They're independent yet deeply affectionate. Provide a litter box, scratching post, and window perch. Indoor cats can live 15+ years with proper care. Check our adoption listings for adorable cats!`;
+      else if(q.includes('rabbit') || q.includes('bunny'))
+        reply = `Rabbits make amazing pets! 🐰 They're quiet, clean, and very social. They need hay as 80% of their diet, fresh veggies daily, and lots of space to hop around. They can even be litter trained! Great for apartments.`;
+      else if(q.includes('health') || q.includes('sick') || q.includes('ill') || q.includes('disease') || q.includes('symptom'))
+        reply = `If your pet shows signs of illness — lethargy, loss of appetite, vomiting — please visit a vet immediately! 🏥 Don't wait. Use our Health Tracker to keep records of checkups and medications for better vet consultations.`;
+      else if(q.includes('train') || q.includes('behavior') || q.includes('bark') || q.includes('bite'))
+        reply = `Training is all about patience and consistency! 🎓 Use positive reinforcement — reward good behavior with treats and praise. Never punish harshly. Start with basic commands: sit, stay, come. 15-minute sessions daily work best!`;
+      else if(q.includes('price') || q.includes('cost') || q.includes('fee') || q.includes('money') || q.includes('rupee'))
+        reply = `Adoption from PawConnect is very affordable! 💚 Shelter fees typically range from ₹500–₹2000 depending on vaccinations included. This is far better than buying — you're saving a life and supporting ethical animal welfare! 🐾`;
+      else if(q.includes('grooming') || q.includes('bath') || q.includes('clean'))
+        reply = `Regular grooming keeps your pet healthy and happy! ✂️ Dogs need bathing every 3–4 weeks, brushing 2–3 times a week. Cats are self-grooming but need brushing to prevent hairballs. Trim nails monthly to avoid discomfort!`;
+      else if(q.includes('pawconnect') || q.includes('paw connect') || q.includes('this app') || q.includes('this website'))
+        reply = `PawConnect is India's all-in-one pet welfare platform! 🐾 We offer pet adoption, lost & found with live map, AI-powered health tracking, and a dedicated admin system. Built with Node.js, MongoDB & AI — made with love for animals! 💚`;
+      else
+        reply = `Thanks for your question! 🐾 I'm PawAdvisor and I'm here to help with pet adoption, health tips, lost & found, and general animal care. Could you give me a bit more detail? I'd love to give you the best possible advice!`;
+    }
+
+    // Save to history
     aiChatHistory.push({role:'assistant', content: reply});
     if(aiChatHistory.length > 12) aiChatHistory = aiChatHistory.slice(-12);
 
-    // Remove typing, add reply
     document.getElementById(typingId)?.remove();
     msgs.innerHTML += `<div class="ai-msg ai-msg--bot"><div style="background:var(--sand);border-radius:16px 16px 16px 4px;padding:12px 14px;font-size:.88rem;line-height:1.55;color:var(--bark)">${reply.replace(/\n/g,'<br>')}</div></div>`;
 
   } catch(err) {
+    console.error('AI Error:', err);
     document.getElementById(typingId)?.remove();
-    msgs.innerHTML += `<div class="ai-msg ai-msg--bot"><div style="background:var(--sand);border-radius:16px 16px 16px 4px;padding:12px 14px;font-size:.88rem;color:var(--bark)">I'm having trouble connecting right now. Please try again in a moment! 🐾</div></div>`;
+    msgs.innerHTML += `<div class="ai-msg ai-msg--bot"><div style="background:var(--sand);border-radius:16px 16px 16px 4px;padding:12px 14px;font-size:.88rem;color:var(--bark)">😕 Something went wrong. Please try again! 🐾</div></div>`;
   }
 
   btn.disabled = false; btn.style.opacity = '1';
   msgs.scrollTop = msgs.scrollHeight;
+}
+
+// ══════════════════════════════════════════
+// LOST & FOUND MAP
+// ══════════════════════════════════════════
+let lfMap = null;
+let mapVisible = false;
+
+function toggleLFMap() {
+  const container = document.getElementById('lf-map-container');
+  const btn = document.getElementById('map-toggle-btn');
+  mapVisible = !mapVisible;
+  if (mapVisible) {
+    container.style.display = 'block';
+    btn.textContent = '📋 Show List';
+    setTimeout(() => initLFMap(), 100);
+  } else {
+    container.style.display = 'none';
+    btn.textContent = '🗺️ Show Map';
+  }
+}
+
+function initLFMap() {
+  if (lfMap) {
+    lfMap.remove();
+    lfMap = null;
+  }
+  lfMap = L.map('lf-map').setView([20.5937, 78.9629], 5); // India center
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(lfMap);
+
+  const data = apiLFReports.length > 0 ? apiLFReports : LF_REPORTS;
+  const cityCoords = {
+    'Delhi': [28.6139, 77.2090],
+    'Dwarka, Delhi': [28.5921, 77.0460],
+    'Mumbai': [19.0760, 72.8777],
+    'Bangalore': [12.9716, 77.5946],
+    'Hyderabad': [17.3850, 78.4867],
+    'Chennai': [13.0827, 80.2707],
+    'Kolkata': [22.5726, 88.3639],
+    'Pune': [18.5204, 73.8567],
+    'Banjara Hills, Hyderabad': [17.4126, 78.4347],
+    'Indiranagar, Bangalore': [12.9784, 77.6408],
+    'Anna Nagar, Chennai': [13.0850, 80.2101],
+    'Koramangala, Bangalore': [12.9352, 77.6245],
+  };
+
+  data.forEach(r => {
+    const loc = r.location || r.city || '';
+    let coords = null;
+    for (const [city, c] of Object.entries(cityCoords)) {
+      if (loc.toLowerCase().includes(city.toLowerCase())) {
+        coords = c;
+        break;
+      }
+    }
+    if (!coords) coords = [20.5937 + (Math.random()-0.5)*10, 78.9629 + (Math.random()-0.5)*10];
+
+    const color = r.type === 'lost' ? '#e74c3c' : '#27ae60';
+    const icon = L.divIcon({
+      html: `<div style="background:${color};width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:2px solid white">${r.type==='lost'?'🔴':'🟢'}</div>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      className: ''
+    });
+
+    L.marker(coords, {icon}).addTo(lfMap).bindPopup(`
+      <div style="min-width:180px">
+        <div style="font-weight:700;font-size:1rem;margin-bottom:4px">${r.name || 'Unknown'}</div>
+        <div style="color:${color};font-weight:600;margin-bottom:6px">${r.type==='lost'?'🔴 Lost':'🟢 Found'}</div>
+        <div style="font-size:.85rem;color:#666;margin-bottom:4px">📍 ${r.location || 'Unknown location'}</div>
+        <div style="font-size:.85rem;color:#666;margin-bottom:4px">🐾 ${r.species || 'Unknown'} ${r.breed ? '· '+r.breed : ''}</div>
+        <div style="font-size:.85rem;color:#666">📞 ${r.contact || r.contactPhone || 'N/A'}</div>
+        ${r.description ? `<div style="font-size:.82rem;margin-top:8px;color:#444">${r.description.substring(0,80)}...</div>` : ''}
+      </div>
+    `);
+  });
 }
 </script>
 
@@ -1218,19 +1362,87 @@ Never give medical diagnoses — always recommend a vet for health concerns.`;
 <!-- ── Add Vaccine Modal ── -->
 <div class="modal-overlay" id="add-vaccine-modal">
   <div class="modal">
-    <div class="modal__header"><h2 class="modal__title">Add Vaccine Record</h2><button class="modal__close" onclick="closeModal('add-vaccine-modal')">✕</button></div>
+    <div class="modal__header"><h2 class="modal__title">💉 Add Vaccine Record</h2><button class="modal__close" onclick="closeModal('add-vaccine-modal')">✕</button></div>
     <div class="modal__body">
       <form onsubmit="saveVaccine(event)">
-        <div class="form-group"><label>Vaccine Name <span>*</span></label><input type="text" class="form-input" placeholder="e.g. Rabies, DHPP" required></div>
-        <div class="grid-2"><div class="form-group"><label>Date Given <span>*</span></label><input type="date" class="form-input" required></div><div class="form-group"><label>Next Due <span>*</span></label><input type="date" class="form-input" required></div></div>
-        <div class="form-group"><label>Veterinarian</label><input type="text" class="form-input" placeholder="Dr. Name / Clinic"></div>
+        <div class="form-group"><label>Vaccine Name <span>*</span></label><input name="vname" type="text" class="form-input" placeholder="e.g. Rabies, DHPP" required></div>
+        <div class="grid-2">
+          <div class="form-group"><label>Date Given <span>*</span></label><input name="vdate" type="date" class="form-input" required onchange="autoSetNextDue(this)"></div>
+          <div class="form-group"><label>Next Due <span>*</span></label><input name="vnext" type="date" class="form-input" required onchange="checkVaccineDueDate(this.value)"></div>
+        </div>
+        <div id="vaccine-overdue-warning" style="display:none;background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px;margin-bottom:12px;font-size:.85rem;color:#856404">
+          ⚠️ <strong>Warning:</strong> Next due date is more than 6 months away. Please confirm with your vet if this is correct.
+        </div>
+        <div class="form-group"><label>Veterinarian</label><input name="vvet" type="text" class="form-input" placeholder="Dr. Name / Clinic"></div>
+        <div class="form-group"><label>Notes</label><input name="vnotes" type="text" class="form-input" placeholder="Any special notes..."></div>
         <button type="submit" class="btn btn-primary btn-full">Save Record 💾</button>
       </form>
     </div>
   </div>
 </div>
 
-<!-- Toast container -->
+<!-- SCHEDULE APPOINTMENT MODAL -->
+<div class="modal-overlay" id="schedule-appt-modal" onclick="if(event.target===this)closeModal('schedule-appt-modal')">
+  <div class="modal">
+    <div class="modal__header">
+      <h2 class="modal__title">📅 Schedule Appointment</h2>
+      <button class="modal__close" onclick="closeModal('schedule-appt-modal')">✕</button>
+    </div>
+    <div class="modal__body">
+      <form onsubmit="saveAppointment(event)">
+        <div class="form-group">
+          <label>Appointment Title <span style="color:var(--terra)">*</span></label>
+          <input name="atitle" type="text" class="form-input" placeholder="e.g. Annual Checkup, Dental Cleaning" required>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Date <span style="color:var(--terra)">*</span></label>
+            <input name="adate" type="date" class="form-input" required>
+          </div>
+          <div class="form-group">
+            <label>Time <span style="color:var(--terra)">*</span></label>
+            <input name="atime" type="time" class="form-input" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Veterinarian / Clinic</label>
+          <input name="avet" type="text" class="form-input" placeholder="Dr. Name / Clinic Name">
+        </div>
+        <div class="form-group">
+          <label>Appointment Type</label>
+          <select name="atype" class="form-input">
+            <option value="Checkup">🩺 Regular Checkup</option>
+            <option value="Vaccination">💉 Vaccination</option>
+            <option value="Dental">🦷 Dental Cleaning</option>
+            <option value="Surgery">🏥 Surgery</option>
+            <option value="Grooming">✂️ Grooming</option>
+            <option value="Other">📋 Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea name="anotes" class="form-input" rows="2" placeholder="Any special notes or concerns…" style="resize:vertical"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">📅 Save Appointment</button>
+      </form>
+    </div>
+  </div>
+</div>
+<!-- MY ADOPTIONS MODAL -->
+<div class="modal-overlay" id="my-adoptions-modal" onclick="if(event.target===this)closeModal('my-adoptions-modal')">
+  <div class="modal" style="max-width:520px">
+    <div class="modal__header" style="background:linear-gradient(135deg,var(--terra),var(--bark));border-radius:24px 24px 0 0;padding:24px 28px">
+      <div>
+        <div style="font-size:1.8rem;margin-bottom:4px">🐾</div>
+        <div class="modal__title" style="color:#fff">My Adoption Requests</div>
+        <p style="color:rgba(255,255,255,.65);font-size:.83rem;margin-top:4px">Track status of your adoption applications</p>
+      </div>
+      <button class="modal__close" onclick="closeModal('my-adoptions-modal')" style="background:rgba(255,255,255,.15);color:#fff">✕</button>
+    </div>
+    <div class="modal__body" style="padding:22px 28px;max-height:500px;overflow-y:auto" id="my-adoptions-body"></div>
+  </div>
+</div>
+
 <!-- ADD PET MODAL -->
 <div id="add-pet-modal" class="modal-overlay" onclick="if(event.target===this)closeModal('add-pet-modal')">
   <div class="modal">
@@ -1277,11 +1489,12 @@ Never give medical diagnoses — always recommend a vet for health concerns.`;
 // ══════════════════════════════════════════
 // API CONFIGURATION
 // ══════════════════════════════════════════
-const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '5000')
-  ? 'http://localhost:5000/api'
-  : '/api';
+const IS_LOCAL_FILE = window.location.protocol === 'file:';
+const HAS_BACKEND = false; // Set true only if you have a real backend
+const API_BASE = 'http://localhost:5000/api';
 
 async function api(path, options = {}) {
+  if (!HAS_BACKEND || IS_LOCAL_FILE) throw new Error('No backend — using localStorage');
   const token = localStorage.getItem('pc_token');
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -1405,6 +1618,13 @@ let currentUser = JSON.parse(localStorage.getItem('pc_user')||'null');
 // PAGE NAVIGATION
 // ══════════════════════════════════════════
 function showPage(page) {
+  // 🔒 Admin page protection — only admin role can access
+  if(page === 'admin') {
+    if(!currentUser || currentUser.role !== 'admin') {
+      openAdminLoginModal();
+      return;
+    }
+  }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   const el = document.getElementById('page-'+page);
   if(el) { el.classList.add('active'); currentPage=page; }
@@ -1426,7 +1646,8 @@ window.addEventListener('scroll',()=> document.getElementById('navbar').classLis
 // TOAST
 // ══════════════════════════════════════════
 function showToast(msg,type='default',ms=3000){
-  const c=document.getElementById('toast-container');
+  let c=document.getElementById('toast-container');
+  if(!c){c=document.createElement('div');c.id='toast-container';c.className='toast-container';document.body.appendChild(c);}
   const icons={success:'✅',error:'❌',default:'🐾'};
   const t=document.createElement('div');
   t.className=`toast ${type}`;
@@ -1607,39 +1828,132 @@ function toggleFav(btn,id){
 function openAdoptModal(id){
   const allAnimals = apiAnimals.length > 0 ? apiAnimals : ANIMALS;
   const a = allAnimals.find(x=>(x._id||x.id)==String(id)) || allAnimals.find(x=>String(x.id)===String(id));
-  if(!a)return;
-  document.getElementById('modal-pet-name').textContent=a.name;
-  document.getElementById('modal-pet-id').value=a._id||a.id;
+  if(!a) return;
+
+  // ── Step 2: Check availability ──
+  if(a.status === 'adopted'){
+    showToast(`Sorry, ${a.name} is already adopted 🏠`, 'error', 4000);
+    return;
+  }
+  if(a.status === 'pending'){
+    showToast(`${a.name} already has a pending request. Try another pet! 🐾`, 'default', 4000);
+    return;
+  }
+
+  // ── Check if current user already requested this pet ──
+  if(currentUser){
+    const reqs = JSON.parse(localStorage.getItem('pc_requests')||'[]');
+    const alreadyRequested = reqs.find(r => String(r.petId)===String(id) && r.email===currentUser.email);
+    if(alreadyRequested){
+      const statusMsg = {pending:'🟡 Your request is pending review', approved:'✅ Your request was approved!', rejected:'❌ Your request was rejected'};
+      showToast(statusMsg[alreadyRequested.status||'pending'] || 'You already requested this pet!', 'default', 4000);
+      return;
+    }
+  }
+
+  // Pre-fill if user is logged in
+  if(currentUser){
+    const nameEl = document.getElementById('adopt-name');
+    const emailEl = document.getElementById('adopt-email');
+    if(nameEl && !nameEl.value) nameEl.value = currentUser.name || '';
+    if(emailEl && !emailEl.value) emailEl.value = currentUser.email || '';
+  }
+
+  document.getElementById('modal-pet-name').textContent = a.name;
+  document.getElementById('modal-pet-id').value = a._id||a.id;
   openModal('adoption-modal');
 }
 async function submitAdoption(e){
   e.preventDefault();
-  const name=document.getElementById('adopt-name').value;
-  const email=document.getElementById('adopt-email').value;
-  const phone=document.getElementById('adopt-phone').value;
-  if(!name||!email||!phone){showToast('Please fill all required fields','error');return;}
-  if(!/\S+@\S+\.\S+/.test(email)){showToast('Please enter a valid email','error');return;}
-  const petId=document.getElementById('modal-pet-id').value;
-  const btn=e.target.querySelector('button[type="submit"]');
-  if(btn){btn.textContent='Submitting…';btn.disabled=true;}
-  try {
-    await api('/adoptions', {
-      method:'POST',
-      body:JSON.stringify({petId, applicantName:name, applicantEmail:email, applicantPhone:phone})
-    });
+  const name     = document.getElementById('adopt-name').value.trim();
+  const email    = document.getElementById('adopt-email').value.trim();
+  const phone    = document.getElementById('adopt-phone').value.trim();
+  const petId    = document.getElementById('modal-pet-id').value;
+  const petName  = document.getElementById('modal-pet-name').textContent;
+  const experience = e.target.querySelector('select').value;
+  const reason   = e.target.querySelector('textarea').value;
+
+  if(!name||!email||!phone){ showToast('Please fill all required fields','error'); return; }
+  if(!/\S+@\S+\.\S+/.test(email)){ showToast('Please enter a valid email','error'); return; }
+
+  const btn = e.target.querySelector('button[type="submit"]');
+  if(btn){ btn.textContent='Checking availability…'; btn.disabled=true; }
+
+  // ── Step 2: Re-check availability ──
+  const allAnimals = apiAnimals.length > 0 ? apiAnimals : ANIMALS;
+  const pet = allAnimals.find(a=>String(a._id||a.id)===String(petId)) || {};
+  if(pet.status === 'adopted'){
+    showToast(`Sorry, ${petName} is already adopted! 🏠`, 'error', 4000);
+    if(btn){ btn.textContent='Submit Request 🐾'; btn.disabled=false; }
     closeModal('adoption-modal');
-    showToast('🎉 Adoption request submitted! We\'ll be in touch soon.','success',4000);
-    e.target.reset();
-  } catch(err) {
-    // fallback: save locally
-    const reqs=JSON.parse(localStorage.getItem('pc_requests')||'[]');
-    reqs.push({id:Date.now(),petId,name,email,phone,date:new Date().toISOString()});
-    localStorage.setItem('pc_requests',JSON.stringify(reqs));
-    closeModal('adoption-modal');
-    showToast('🎉 Adoption request submitted!','success',4000);
-    e.target.reset();
+    return;
   }
-  if(btn){btn.textContent='Submit Request';btn.disabled=false;}
+
+  // ── Step 3: Create adoption record ──
+  const refId = 'PAW-' + Date.now().toString().slice(-6);
+  const submittedDate = new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
+  const newReq = {
+    id: Date.now(),
+    refId,
+    petId,
+    petName,
+    name,
+    email,
+    phone,
+    experience,
+    reason: reason || 'Not provided',
+    status: 'pending',
+    date: new Date().toISOString()
+  };
+
+  // Save to localStorage
+  const reqs = JSON.parse(localStorage.getItem('pc_requests')||'[]');
+  reqs.unshift(newReq);
+  localStorage.setItem('pc_requests', JSON.stringify(reqs));
+
+  // Update pet status to pending in local list
+  const localIdx = ANIMALS.findIndex(a=>String(a.id)===String(petId));
+  if(localIdx > -1) ANIMALS[localIdx].status = 'pending';
+
+  if(btn){ btn.textContent='Sending confirmation…'; }
+
+  // ── Step 4: Send confirmation email to user ──
+  try {
+    console.log('📧 Sending email to:', email, 'template:', 'template_7af3eui');
+    const emailResult = await emailjs.send('service_bscmwhl', 'template_7af3eui', {
+      to_email: email,
+      to_name: name,
+      pet_name: petName,
+      pet_breed: pet.breed || 'N/A',
+      pet_age: pet.age || 'N/A',
+      pet_location: pet.location || 'N/A',
+      applicant_phone: phone,
+      experience,
+      reason: reason || 'Not provided',
+      ref_id: refId,
+      submitted_date: submittedDate,
+    });
+    console.log('✅ Email sent:', emailResult);
+    showToast(`📧 Confirmation email sent to ${email}`, 'success', 5000);
+  } catch(emailErr){
+    console.error('❌ Email failed:', JSON.stringify(emailErr));
+    showToast(`❌ Email Error: ${emailErr?.text || emailErr?.message || JSON.stringify(emailErr)}`, 'error', 8000);
+  }
+
+  // ── Step 5: Update UI — disable adopt button, show status ──
+  closeModal('adoption-modal');
+  e.target.reset();
+  if(btn){ btn.textContent='Submit Request 🐾'; btn.disabled=false; }
+
+  // Refresh listings to show pending status
+  if(currentPage === 'adoption') renderAdoption();
+  if(currentPage === 'home') renderHomeRecent();
+
+  // Show success with ref ID
+  showToast(`✅ Adoption Request Sent! Ref: ${refId}`, 'success', 5000);
+
+  // Update nav to show "My Requests"
+  updateNavForUser(currentUser);
 }
 
 // ══════════════════════════════════════════
@@ -1694,32 +2008,68 @@ async function submitLFReport(e){
   const loc=f.querySelector('[name="location"]').value;
   const contact=f.querySelector('[name="contact"]').value;
   const desc=f.querySelector('[name="description"]').value;
-  if(!loc||!contact||!desc){showToast('Please fill all required fields','error');return;}
+  const reporterEmail=f.querySelector('[name="reporterEmail"]').value;
+  if(!loc||!contact||!desc||!reporterEmail){showToast('Please fill all required fields','error');return;}
+  if(!/\S+@\S+\.\S+/.test(reporterEmail)){showToast('Please enter a valid email','error');return;}
+
   const btn=f.querySelector('button[type="submit"]');
   if(btn){btn.textContent='Submitting…';btn.disabled=true;}
+
+  const petName = f.querySelector('[name="petName"]').value||'Unknown';
+  const species  = f.querySelector('[name="species"]').value||'Not specified';
+  const breed    = f.querySelector('[name="breed"]').value||'Not specified';
+  const color    = f.querySelector('[name="color"]').value||'Not specified';
+  const reportDate = new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
+  const refId = 'LF-' + Date.now().toString().slice(-6);
+
   const payload={
     type:reportType,
-    petName:f.querySelector('[name="petName"]').value||'Unknown',
-    species:f.querySelector('[name="species"]').value,
-    breed:f.querySelector('[name="breed"]').value,
-    color:f.querySelector('[name="color"]').value,
+    petName, species, breed, color,
     location:loc,
     contactPhone:contact,
+    reporterEmail,
     description:desc,
-    date:new Date().toISOString().split('T')[0]
+    date:new Date().toISOString().split('T')[0],
+    refId
   };
+
+  // Save locally
   try {
     await api('/lostfound', {method:'POST', body:JSON.stringify(payload)});
-    await loadLFFromAPI(); // refresh list
+    await loadLFFromAPI();
   } catch(err) {
-    // save locally as fallback
     const reports=JSON.parse(localStorage.getItem('pc_lf')||'[]');
     reports.unshift({...payload, id:Date.now(), photo:petPhoto({species:payload.species}), date:payload.date, contact});
     localStorage.setItem('pc_lf',JSON.stringify(reports));
   }
-  f.reset();showToast('Report submitted! Thank you 🙏','success',4000);
+
+  // Send confirmation email
+  try {
+    await emailjs.send('service_bscmwhl', 'template_gb14epp', {
+      email: reporterEmail,
+      to_name: reporterEmail.split('@')[0],
+      report_type: reportType==='lost' ? '🔴 Lost Pet' : '🟢 Found Pet',
+      pet_name: petName,
+      species,
+      breed,
+      color,
+      location: loc,
+      contact_phone: contact,
+      description: desc,
+      report_date: reportDate,
+      ref_id: refId,
+    });
+    showToast(`📧 Confirmation sent to ${reporterEmail}`,'success',4000);
+  } catch(emailErr){
+    console.error('LF email error:', emailErr);
+    showToast('Report submitted! (Email notification failed)','success',3000);
+  }
+
+  f.reset();
+  showToast(`✅ Report submitted! Ref: ${refId}`,'success',5000);
   window.scrollTo(0,0);
-  if(btn){btn.textContent='Submit Report';btn.disabled=false;}
+  if(btn){btn.textContent='📢 Submit Report';btn.disabled=false;}
+  renderLF();
 }
 
 // ══════════════════════════════════════════
@@ -1742,15 +2092,61 @@ function renderHealth(){
   renderVaccines();renderWeightChart();renderUpcoming();
 }
 function renderVaccines(){
-  const vax=VACCINES[currentPet];
-  const map={current:'<span class="badge badge--green">✅ Current</span>',upcoming:'<span class="badge badge--gold">⚠️ Due Soon</span>',overdue:'<span class="badge badge--red">❌ Overdue</span>'};
-  document.getElementById('vaccine-list').innerHTML=vax.map(v=>`
-    <div class="vaccine-item">
+  const stored = JSON.parse(localStorage.getItem('pc_vaccines_' + currentPet) || '[]');
+  const staticVax = VACCINES[currentPet] || [];
+  // Combine static + user-added (user-added first)
+  const allVax = [...stored, ...staticVax];
+  const map = {
+    current:'<span class="badge badge--green">✅ Current</span>',
+    upcoming:'<span class="badge badge--gold">⚠️ Due Soon</span>',
+    overdue:'<span class="badge badge--red">❌ Overdue</span>'
+  };
+  const el = document.getElementById('vaccine-list');
+  if(!allVax.length){
+    el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--bark-md)">
+      <div style="font-size:2.5rem;margin-bottom:10px">💉</div>
+      <p>No vaccine records yet. Click "+ Add" to add one!</p>
+    </div>`;
+    return;
+  }
+  el.innerHTML = allVax.map((v, i) => {
+    const isUserAdded = i < stored.length;
+    return `
+    <div class="vaccine-item" style="animation:fadeIn .3s ease ${i*0.05}s both">
       <div class="vaccine-item__icon">💉</div>
-      <div style="flex:1"><div class="vaccine-item__name">${v.name}</div><div class="vaccine-item__date">Given: ${v.date} · Due: ${v.next}</div></div>
-      ${map[v.status]}
-    </div>
-  `).join('');
+      <div style="flex:1">
+        <div class="vaccine-item__name">${v.name} ${v.vet ? `<span style="font-size:.75rem;color:var(--bark-md);font-weight:400">· ${v.vet}</span>` : ''}</div>
+        <div class="vaccine-item__date">Given: ${v.date} · Due: ${v.next}</div>
+        ${v.notes ? `<div style="font-size:.75rem;color:var(--bark-md);margin-top:2px">📝 ${v.notes}</div>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        ${map[v.status] || map['current']}
+        ${isUserAdded ? `<button onclick="deleteVaccine(${i})" style="background:rgba(228,92,92,.1);border:none;color:#e45c5c;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center" title="Delete">🗑</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+  // Update stats
+  updateHealthStats(allVax);
+}
+
+function deleteVaccine(index){
+  if(!confirm('Delete this vaccine record?')) return;
+  const vaccines = JSON.parse(localStorage.getItem('pc_vaccines_' + currentPet) || '[]');
+  vaccines.splice(index, 1);
+  localStorage.setItem('pc_vaccines_' + currentPet, JSON.stringify(vaccines));
+  renderVaccines();
+  showToast('Vaccine record deleted','success');
+}
+
+function updateHealthStats(allVax){
+  const total = allVax.length;
+  const current = allVax.filter(v=>v.status==='current').length;
+  const due = allVax.filter(v=>v.status==='upcoming').length;
+  const overdue = allVax.filter(v=>v.status==='overdue').length;
+  const t=document.getElementById('h-total'); if(t) t.textContent=total;
+  const c=document.getElementById('h-current'); if(c) c.textContent=current;
+  const d=document.getElementById('h-due'); if(d) d.textContent=due;
+  const o=document.getElementById('h-overdue'); if(o) o.textContent=overdue;
 }
 function renderWeightChart(){
   const data=WEIGHTS[currentPet];const max=Math.max(...data);
@@ -1758,12 +2154,81 @@ function renderWeightChart(){
   document.getElementById('weight-labels').innerHTML=['Sep','Oct','Nov','Dec','Jan','Feb','Mar'].map(m=>`<span class="weight-label">${m}</span>`).join('');
 }
 function renderUpcoming(){
-  document.getElementById('upcoming-list').innerHTML=UPCOMING[currentPet].map(i=>`
+  const stored = JSON.parse(localStorage.getItem('pc_appointments_' + currentPet) || '[]');
+  const staticItems = UPCOMING[currentPet] || [];
+  const allItems = [...stored, ...staticItems];
+  const el = document.getElementById('upcoming-list');
+  if(!allItems.length){
+    el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--bark-md)">
+      <div style="font-size:2.5rem;margin-bottom:10px">📅</div>
+      <p>No appointments yet. Click "Schedule Appointment" to add one!</p>
+    </div>`;
+    return;
+  }
+  el.innerHTML = allItems.map((i, idx) => {
+    const isUserAdded = idx < stored.length;
+    return `
     <div class="upcoming-item">
-      <div class="upcoming-item__date-box"><span class="day">${i.day}</span><span class="mon">${i.mon}</span></div>
-      <div><div class="upcoming-item__title">${i.title}</div><div class="upcoming-item__sub">${i.sub}</div></div>
-    </div>
-  `).join('');
+      <div class="upcoming-item__date-box">
+        <span class="day">${i.day}</span>
+        <span class="mon">${i.mon}</span>
+      </div>
+      <div style="flex:1">
+        <div class="upcoming-item__title">${i.title}</div>
+        <div class="upcoming-item__sub">${i.sub}</div>
+      </div>
+      ${isUserAdded ? `<button onclick="deleteAppointment(${idx})" style="background:rgba(228,92,92,.1);border:none;color:#e45c5c;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:.85rem" title="Delete">🗑</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function saveAppointment(e){
+  e.preventDefault();
+  const f = e.target;
+  const title = f.querySelector('[name="atitle"]').value;
+  const date  = f.querySelector('[name="adate"]').value;
+  const time  = f.querySelector('[name="atime"]').value;
+  const vet   = f.querySelector('[name="avet"]').value;
+  const type  = f.querySelector('[name="atype"]').value;
+  const notes = f.querySelector('[name="anotes"]').value;
+
+  const d = new Date(date);
+  const day = d.getDate();
+  const mon = d.toLocaleString('en',{month:'short'}).toUpperCase();
+  const timeStr = new Date(`2000-01-01T${time}`).toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit'});
+
+  const appt = {
+    day: String(day),
+    mon,
+    title: `${type}: ${title}`,
+    sub: `${timeStr}${vet ? ' · ' + vet : ''}${notes ? ' · ' + notes : ''}`
+  };
+
+  const appts = JSON.parse(localStorage.getItem('pc_appointments_' + currentPet) || '[]');
+  appts.unshift(appt);
+  localStorage.setItem('pc_appointments_' + currentPet, JSON.stringify(appts));
+
+  closeModal('schedule-appt-modal');
+  f.reset();
+  showToast('📅 Appointment scheduled!', 'success', 3000);
+
+  // Switch to upcoming tab
+  document.querySelectorAll('[onclick^="switchHealthTab"]').forEach(b=>b.classList.remove('active'));
+  const upcomingBtn = [...document.querySelectorAll('[onclick^="switchHealthTab"]')].find(b=>b.onclick.toString().includes('upcoming'));
+  if(upcomingBtn) upcomingBtn.classList.add('active');
+  document.getElementById('health-vaccines').style.display = 'none';
+  document.getElementById('health-weight').style.display = 'none';
+  document.getElementById('health-upcoming').style.display = 'block';
+  renderUpcoming();
+}
+
+function deleteAppointment(index){
+  if(!confirm('Delete this appointment?')) return;
+  const appts = JSON.parse(localStorage.getItem('pc_appointments_' + currentPet) || '[]');
+  appts.splice(index, 1);
+  localStorage.setItem('pc_appointments_' + currentPet, JSON.stringify(appts));
+  renderUpcoming();
+  showToast('Appointment deleted','success');
 }
 function switchPet(pet){currentPet=pet;renderHealth();}
 function switchHealthTab(btn,tab){
@@ -1773,9 +2238,68 @@ function switchHealthTab(btn,tab){
   document.getElementById('health-weight').style.display=tab==='weight'?'block':'none';
   document.getElementById('health-upcoming').style.display=tab==='upcoming'?'block':'none';
 }
+function autoSetNextDue(dateInput) {
+  const f = dateInput.closest('form');
+  const nextInput = f.querySelector('[name="vnext"]');
+  const givenDate = new Date(dateInput.value);
+  if (!isNaN(givenDate)) {
+    // Auto set next due to 6 months after given date
+    const nextDate = new Date(givenDate);
+    nextDate.setMonth(nextDate.getMonth() + 6);
+    nextInput.value = nextDate.toISOString().split('T')[0];
+    checkVaccineDueDate(nextInput.value);
+  }
+}
+
+function checkVaccineDueDate(nextVal) {
+  const warning = document.getElementById('vaccine-overdue-warning');
+  if (!nextVal || !warning) return;
+  const nextDate = new Date(nextVal);
+  const today = new Date();
+  const diffMonths = (nextDate - today) / (1000 * 60 * 60 * 24 * 30);
+  if (diffMonths > 6) {
+    warning.style.display = 'block';
+  } else {
+    warning.style.display = 'none';
+  }
+}
+
 function saveVaccine(e){
-  e.preventDefault();closeModal('add-vaccine-modal');
-  showToast('Vaccine record added! 💉','success');e.target.reset();
+  e.preventDefault();
+  const f = e.target;
+  const name = f.querySelector('[name="vname"]').value;
+  const dateGiven = f.querySelector('[name="vdate"]').value;
+  const nextDue = f.querySelector('[name="vnext"]').value;
+  const vet = f.querySelector('[name="vvet"]').value;
+
+  // Check if next due is more than 6 months away
+  const nextDate = new Date(nextDue);
+  const today = new Date();
+  const diffMonths = (nextDate - today) / (1000 * 60 * 60 * 24 * 30);
+
+  if (diffMonths > 6) {
+    const confirm = window.confirm(`⚠️ The next due date is more than 6 months away (${nextDue}). Vaccines are typically due every 6 months or less. Do you still want to save this record?`);
+    if (!confirm) return;
+  }
+
+  // Check if vaccine is overdue (next due is in the past)
+  if (nextDate < today) {
+    showToast('🚨 This vaccine is OVERDUE! Please visit your vet immediately.', 'error', 5000);
+  } else if (diffMonths <= 1) {
+    showToast('⚠️ This vaccine is due within 1 month! Schedule a vet visit soon.', 'default', 4000);
+  } else {
+    showToast('Vaccine record saved! 💉 Next due: ' + nextDue, 'success', 3000);
+  }
+
+  // Save to localStorage
+  const vaccines = JSON.parse(localStorage.getItem('pc_vaccines_' + currentPet) || '[]');
+  vaccines.push({ name, date: dateGiven, next: nextDue, vet, status: nextDate < today ? 'overdue' : diffMonths <= 1 ? 'upcoming' : 'current' });
+  localStorage.setItem('pc_vaccines_' + currentPet, JSON.stringify(vaccines));
+
+  closeModal('add-vaccine-modal');
+  renderVaccines();
+  f.reset();
+  document.getElementById('vaccine-overdue-warning').style.display = 'none';
 }
 
 // ══════════════════════════════════════════
@@ -1918,7 +2442,7 @@ async function handleForgotPassword(){
   const toName = user ? user.name : email.split('@')[0];
 
   try {
-    await emailjs.send('service_yyye04r', 'template_8jvc7uj', {
+    await emailjs.send('service_bscmwhl', 'template_8jvc7uj', {
       email: email,
       to_name: toName,
       link: resetLink,
@@ -2011,9 +2535,64 @@ async function handleSignup(e){
   btn.textContent='Create Account 🐾';btn.disabled=false;
 }
 function updateNavForUser(user){
-  document.getElementById('nav-actions').innerHTML=user
-    ?`<span style="font-size:.88rem;font-weight:500;color:var(--bark-md)">Hi, ${user.name.split(' ')[0]}!</span><button class="btn btn-secondary btn-sm" onclick="handleLogout()">Logout</button>`
-    :`<a onclick="showPage('auth')" class="btn btn-secondary btn-sm">Login</a><a onclick="showPage('auth')" class="btn btn-primary btn-sm">Sign Up</a>`;
+  if(user){
+    const reqs = JSON.parse(localStorage.getItem('pc_requests')||'[]');
+    const userReqs = reqs.filter(r=>r.email===user.email);
+    const pendingCount = userReqs.filter(r=>!r.status||r.status==='pending').length;
+    const badge = pendingCount > 0 ? `<span style="background:var(--terra);color:#fff;border-radius:50%;width:18px;height:18px;font-size:.65rem;display:inline-flex;align-items:center;justify-content:center;margin-left:4px;font-weight:700">${pendingCount}</span>` : '';
+    document.getElementById('nav-actions').innerHTML=
+      `<span style="font-size:.88rem;font-weight:500;color:var(--bark-md)">Hi, ${user.name.split(' ')[0]}!</span>
+       <button class="btn btn-secondary btn-sm" onclick="openMyAdoptions()" style="position:relative">🐾 My Requests${badge}</button>
+       <button class="btn btn-secondary btn-sm" onclick="handleLogout()">Logout</button>`;
+  } else {
+    document.getElementById('nav-actions').innerHTML=
+      `<a onclick="showPage('auth')" class="btn btn-secondary btn-sm">Login</a>
+       <a onclick="showPage('auth')" class="btn btn-primary btn-sm">Sign Up</a>`;
+  }
+}
+
+function openMyAdoptions(){
+  const reqs = JSON.parse(localStorage.getItem('pc_requests')||'[]');
+  const userReqs = currentUser ? reqs.filter(r=>r.email===currentUser.email) : [];
+  const statusBadge = {
+    pending:`<span class="badge badge--gold">🟡 Pending Review</span>`,
+    approved:`<span class="badge badge--green">✅ Approved</span>`,
+    rejected:`<span class="badge badge--red">❌ Not Approved</span>`
+  };
+  const body = document.getElementById('my-adoptions-body');
+  if(!body){ showToast('My Requests modal not found','error'); return; }
+
+  body.innerHTML = userReqs.length ? userReqs.map(r=>`
+    <div style="background:var(--sand);border-radius:var(--radius-md);padding:16px;margin-bottom:12px;border-left:4px solid ${r.status==='approved'?'var(--moss)':r.status==='rejected'?'#e45c5c':'var(--gold)'}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div style="font-family:var(--font-display);font-weight:700;font-size:1rem">🐾 ${r.petName||'Pet'}</div>
+        ${statusBadge[r.status||'pending']}
+      </div>
+      <div style="font-size:.82rem;color:var(--bark-md);margin-bottom:6px">📋 Ref: <strong>${r.refId||r.id}</strong> &nbsp;·&nbsp; 📅 ${r.date?r.date.split('T')[0]:''}</div>
+      ${r.experience?`<div style="font-size:.8rem;color:var(--bark-md)">Experience: ${r.experience}</div>`:''}
+      ${r.status==='approved'?`
+        <div style="margin-top:10px;padding:10px 12px;background:rgba(90,122,82,.12);border-radius:8px;font-size:.85rem;color:var(--moss)">
+          🎉 <strong>Congratulations!</strong> Your adoption request has been approved. The shelter will contact you within 24 hours.
+        </div>`:''}
+      ${r.status==='rejected'?`
+        <div style="margin-top:10px;padding:10px 12px;background:rgba(228,92,92,.1);border-radius:8px;font-size:.85rem;color:#c0392b">
+          😔 <strong>Not Approved.</strong> Your request was not approved this time. Please browse other available pets!
+          <br><button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="closeModal('my-adoptions-modal');showPage('adoption')">Browse Pets →</button>
+        </div>`:''}
+      ${(!r.status||r.status==='pending')?`
+        <div style="margin-top:10px;padding:10px 12px;background:rgba(232,168,56,.1);border-radius:8px;font-size:.85rem;color:#B07C10">
+          ⏳ Your request is being reviewed by the shelter admin. You'll receive an email once a decision is made.
+        </div>`:''}
+    </div>
+  `).join('') : `
+    <div style="text-align:center;padding:40px 20px;color:var(--bark-md)">
+      <div style="font-size:3rem;margin-bottom:12px">🐾</div>
+      <h3 style="margin-bottom:8px">No Requests Yet</h3>
+      <p style="margin-bottom:16px">You haven't submitted any adoption requests yet.</p>
+      <button class="btn btn-primary" onclick="closeModal('my-adoptions-modal');showPage('adoption')">Browse Pets →</button>
+    </div>`;
+
+  openModal('my-adoptions-modal');
 }
 function handleLogout(){
   currentUser=null;
@@ -2091,8 +2670,23 @@ async function renderAdmin(){
     </tr>`).join('');
     if(rt)rt.innerHTML=rHtml;if(rta)rta.innerHTML=rHtml;
   } catch(e) {
-    const rHtml=ADMIN_REQS.map(r=>`<tr><td><strong>${r.pet}</strong></td><td>${r.requester}</td><td>${r.date}</td><td><span class="badge ${rBadge[r.status]}">${r.status}</span></td><td>—</td></tr>`).join('');
-    if(rt)rt.innerHTML=rHtml;if(rta)rta.innerHTML=rHtml;
+    // Load from localStorage
+    const allReqs = JSON.parse(localStorage.getItem('pc_requests')||'[]');
+    const pc = document.getElementById('admin-pending-count');
+    const pendingCount = allReqs.filter(r=>!r.status||r.status==='pending').length;
+    if(pc) pc.textContent = pendingCount;
+    const rHtml = allReqs.length ? allReqs.map(r=>`<tr>
+      <td><strong>${r.petName||'Pet'}</strong></td>
+      <td><div style="font-weight:600">${r.name||'—'}</div><div style="font-size:.78rem;color:var(--bark-md)">${r.email||''}</div></td>
+      <td>${r.date?r.date.split('T')[0]:'—'}</td>
+      <td><span class="badge ${rBadge[r.status||'pending']}">${r.status||'pending'}</span></td>
+      <td>${(!r.status||r.status==='pending')?
+        `<button class="btn btn-moss btn-sm" onclick="approveAdoption('${r.id}')" style="margin-right:6px">✅ Approve</button>
+         <button class="btn btn-secondary btn-sm" onclick="rejectAdoption('${r.id}')">❌ Reject</button>`
+        :'—'}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--bark-md)">No adoption requests yet</td></tr>`;
+    if(rt)rt.innerHTML=rHtml; if(rta)rta.innerHTML=rHtml;
   }
 
   // ── Fetch real users ──
@@ -2119,18 +2713,75 @@ async function renderAdmin(){
 }
 
 async function approveAdoption(id){
+  if(!confirm('✅ Approve this adoption request?')) return;
+
+  // ── Step 7: Update request + pet status ──
+  const reqs = JSON.parse(localStorage.getItem('pc_requests')||'[]');
+  const idx = reqs.findIndex(r=>String(r.id)===String(id));
+  if(idx === -1){ showToast('Request not found','error'); return; }
+
+  reqs[idx].status = 'approved';
+  localStorage.setItem('pc_requests', JSON.stringify(reqs));
+
+  // Update pet status → Adopted
+  const r = reqs[idx];
+  const petIdx = ANIMALS.findIndex(a=>String(a.id)===String(r.petId));
+  if(petIdx > -1) ANIMALS[petIdx].status = 'adopted';
+
+  // ── Notify user via email ──
   try {
-    await api(`/admin/adoptions/${id}`, {method:'PATCH', body:JSON.stringify({status:'approved'})});
-    showToast('Adoption approved! ✅','success');
-    renderAdmin();
-  } catch(e) { showToast('Approved (offline mode)','success'); }
+    await emailjs.send('service_bscmwhl', 'template_7af3eui', {
+      to_email: r.email,
+      to_name: r.name,
+      pet_name: r.petName,
+      pet_breed: 'N/A', pet_age: 'N/A', pet_location: 'N/A',
+      applicant_phone: r.phone || 'N/A',
+      experience: r.experience || 'N/A',
+      reason: r.reason || 'N/A',
+      ref_id: r.refId || r.id,
+      submitted_date: `✅ APPROVED on ${new Date().toLocaleDateString('en-IN')} — Congratulations! 🎉 The shelter will contact you within 24 hours to complete the adoption.`,
+    });
+    showToast(`✅ Approved! Notification sent to ${r.email}`, 'success', 5000);
+  } catch(emailErr){
+    showToast('✅ Adoption approved! (Email notification failed)', 'success', 4000);
+  }
+  renderAdmin();
 }
+
 async function rejectAdoption(id){
+  if(!confirm('❌ Reject this adoption request?')) return;
+
+  // ── Step 8: Update request status → rejected, free up pet ──
+  const reqs = JSON.parse(localStorage.getItem('pc_requests')||'[]');
+  const idx = reqs.findIndex(r=>String(r.id)===String(id));
+  if(idx === -1){ showToast('Request not found','error'); return; }
+
+  reqs[idx].status = 'rejected';
+  localStorage.setItem('pc_requests', JSON.stringify(reqs));
+
+  // Free up pet back to available
+  const r = reqs[idx];
+  const petIdx = ANIMALS.findIndex(a=>String(a.id)===String(r.petId));
+  if(petIdx > -1) ANIMALS[petIdx].status = 'available';
+
+  // ── Notify user via email ──
   try {
-    await api(`/admin/adoptions/${id}`, {method:'PATCH', body:JSON.stringify({status:'rejected'})});
-    showToast('Adoption rejected.','error');
-    renderAdmin();
-  } catch(e) { showToast('Rejected (offline mode)','error'); }
+    await emailjs.send('service_bscmwhl', 'template_7af3eui', {
+      to_email: r.email,
+      to_name: r.name,
+      pet_name: r.petName,
+      pet_breed: 'N/A', pet_age: 'N/A', pet_location: 'N/A',
+      applicant_phone: r.phone || 'N/A',
+      experience: r.experience || 'N/A',
+      reason: r.reason || 'N/A',
+      ref_id: r.refId || r.id,
+      submitted_date: `❌ NOT APPROVED on ${new Date().toLocaleDateString('en-IN')} — We're sorry, your request was not approved at this time. Please browse other available pets on PawConnect.`,
+    });
+    showToast(`❌ Rejected. Notification sent to ${r.email}`, 'error', 5000);
+  } catch(emailErr){
+    showToast('❌ Adoption rejected! (Email notification failed)', 'error', 4000);
+  }
+  renderAdmin();
 }
 const ADMIN_SECTIONS=['dashboard','animals','adoptions','lostfound','shelters','users','reports','settings'];
 function switchAdminSection(link,section){
@@ -2457,5 +3108,120 @@ async function submitAddPet(e){
   btn.textContent='Add Pet 🐾'; btn.disabled=false;
 }
 </script>
+
+<!-- ══════════════════════════════════════════
+     ADMIN LOGIN MODAL
+══════════════════════════════════════════ -->
+<div id="admin-login-modal" class="modal-overlay" onclick="if(event.target===this)closeAdminLoginModal()">
+  <div class="modal" style="max-width:420px">
+    <div class="modal__header" style="background:linear-gradient(135deg,var(--bark),#2a1f16);border-radius:24px 24px 0 0;padding:28px 32px">
+      <div>
+        <div style="font-size:2rem;margin-bottom:8px">🔐</div>
+        <div class="modal__title" style="color:#fff;font-size:1.3rem">Admin Access</div>
+        <p style="color:rgba(255,255,255,.6);font-size:.85rem;margin-top:4px">Enter your admin credentials to continue</p>
+      </div>
+      <button class="modal__close" onclick="closeAdminLoginModal()" style="background:rgba(255,255,255,.1);color:#fff">✕</button>
+    </div>
+    <div class="modal__body" style="padding:28px 32px">
+      <div class="form-group">
+        <label>Admin Email <span style="color:var(--terra)">*</span></label>
+        <input type="email" id="admin-login-email" class="form-input" placeholder="admin@pawconnect.com" onkeydown="if(event.key==='Enter')handleAdminLogin()">
+      </div>
+      <div class="form-group">
+        <label>Admin Password <span style="color:var(--terra)">*</span></label>
+        <div style="position:relative">
+          <input type="password" id="admin-login-pw" class="form-input" placeholder="Enter admin password" onkeydown="if(event.key==='Enter')handleAdminLogin()" style="padding-right:44px">
+          <button onclick="toggleAdminPw()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--bark-md)" id="admin-pw-eye">👁️</button>
+        </div>
+      </div>
+      <div id="admin-login-error" style="display:none;background:rgba(228,92,92,.1);border:1px solid rgba(228,92,92,.3);border-radius:var(--radius-md);padding:10px 14px;font-size:.85rem;color:#c0392b;margin-bottom:16px">
+        ❌ <span id="admin-login-error-msg">Invalid credentials</span>
+      </div>
+      <button onclick="handleAdminLogin()" id="admin-login-btn" class="btn btn-primary btn-full btn-lg" style="margin-top:4px">
+        🔐 Login to Admin Panel
+      </button>
+      <div style="margin-top:16px;padding:12px 14px;background:var(--sand);border-radius:var(--radius-md);font-size:.8rem;color:var(--bark-md);text-align:center">
+        🔒 Admin access is restricted to authorized personnel only
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// ADMIN CREDENTIALS — Change these!
+// ══════════════════════════════════════════
+const ADMIN_CREDENTIALS = [
+  { email: 'admin@pawconnect.com', password: 'Admin@123', name: 'PawConnect Admin' },
+  { email: 'krishjrj09@gmail.com', password: 'Krish@admin123', name: 'Krish Admin' },
+];
+
+function openAdminLoginModal() {
+  document.getElementById('admin-login-email').value = '';
+  document.getElementById('admin-login-pw').value = '';
+  document.getElementById('admin-login-error').style.display = 'none';
+  document.getElementById('admin-login-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  setTimeout(()=>document.getElementById('admin-login-email').focus(), 300);
+}
+
+function closeAdminLoginModal() {
+  document.getElementById('admin-login-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function toggleAdminPw() {
+  const inp = document.getElementById('admin-login-pw');
+  const eye = document.getElementById('admin-pw-eye');
+  if(inp.type === 'password') { inp.type = 'text'; eye.textContent = '🙈'; }
+  else { inp.type = 'password'; eye.textContent = '👁️'; }
+}
+
+async function handleAdminLogin() {
+  const email = document.getElementById('admin-login-email').value.trim();
+  const pw    = document.getElementById('admin-login-pw').value;
+  const errBox = document.getElementById('admin-login-error');
+  const errMsg = document.getElementById('admin-login-error-msg');
+  const btn    = document.getElementById('admin-login-btn');
+
+  if(!email || !pw) {
+    errMsg.textContent = 'Please enter both email and password.';
+    errBox.style.display = 'block'; return;
+  }
+
+  btn.textContent = 'Verifying…'; btn.disabled = true;
+  await new Promise(r => setTimeout(r, 700)); // simulate auth delay
+
+  const match = ADMIN_CREDENTIALS.find(
+    c => c.email.toLowerCase() === email.toLowerCase() && c.password === pw
+  );
+
+  if(match) {
+    // Set admin user
+    const adminUser = { name: match.name, email: match.email, role: 'admin' };
+    currentUser = adminUser;
+    localStorage.setItem('pc_user', JSON.stringify(adminUser));
+    updateNavForUser(adminUser);
+    closeAdminLoginModal();
+    showToast(`Welcome, ${match.name.split(' ')[0]}! 🔐`, 'success', 3000);
+    // Now actually go to admin page
+    setTimeout(() => {
+      document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+      document.getElementById('page-admin').classList.add('active');
+      currentPage = 'admin';
+      window.scrollTo(0,0);
+      renderAdmin();
+    }, 400);
+  } else {
+    errMsg.textContent = 'Incorrect email or password. Please try again.';
+    errBox.style.display = 'block';
+    document.getElementById('admin-login-pw').value = '';
+    document.getElementById('admin-login-pw').focus();
+  }
+
+  btn.textContent = '🔐 Login to Admin Panel'; btn.disabled = false;
+}
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </body>
 </html>
